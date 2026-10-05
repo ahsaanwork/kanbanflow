@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { Link, useNavigate } from "react-router-dom";
+import { supabase } from "@/api/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,8 +14,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  // Post-login destination (e.g. the MCP OAuth consent page sends users here
-  // with returnTo so the grant flow can resume). Same-origin paths only.
+  const navigate = useNavigate();
   const returnTo = safeReturnTo();
 
   const handleSubmit = async (e) => {
@@ -23,8 +22,12 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
-      await base44.auth.loginViaEmailPassword(email, password);
-      window.location.href = returnTo;
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (signInError) throw signInError;
+      navigate(returnTo || "/");
     } catch (err) {
       setError(err.message || "Invalid email or password");
     } finally {
@@ -32,8 +35,18 @@ export default function Login() {
     }
   };
 
-  const handleGoogle = () => {
-    base44.auth.loginWithProvider("google", returnTo);
+  const handleGoogle = async () => {
+    try {
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: window.location.origin + (returnTo || "/"),
+        },
+      });
+      if (oauthError) throw oauthError;
+    } catch (err) {
+      setError(err.message || "Failed to sign in with Google");
+    }
   };
 
   return (

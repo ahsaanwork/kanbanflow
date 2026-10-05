@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/api/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,9 +16,11 @@ export default function ForgotPassword() {
     e.preventDefault();
     setLoading(true);
     try {
-      await base44.auth.resetPasswordRequest(email);
+      await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
     } catch {
-      // Always show success regardless
+      // Always show success regardless to protect email privacy
     } finally {
       setLoading(false);
       setSent(true);
@@ -63,7 +65,7 @@ export default function ForgotPassword() {
             {loading ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Sending...
+                Sending link...
               </>
             ) : (
               "Send reset link"

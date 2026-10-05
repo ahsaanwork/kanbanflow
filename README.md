@@ -1,67 +1,41 @@
-# Base44 Project
+# Puffy Todos (KanbanFlow)
 
-Use this repository to run and edit the app locally, then publish changes back through Base44.
+A full-stack Kanban application built with **React**, **Vite**, **Tailwind CSS**, and **Supabase**.
 
-Any change pushed to the repo will also be reflected in the Base44 Builder.
+## 1. Setup Supabase Database
 
-## Prerequisites
+1. Go to your Supabase project dashboard: [https://supabase.com/dashboard](https://supabase.com/dashboard).
+2. Open the **SQL Editor** tab from the left sidebar.
+3. Open `supabase/schema.sql` from this repository, copy its contents, paste them into the SQL Editor, and click **Run**.
+   - This creates the `tasks` table with indexes and Row Level Security (RLS) policies so each user only sees and modifies their own tasks.
 
-1. Clone the repository using the project's Git URL.
-2. Navigate to the project directory.
-3. Install dependencies: `npm install`.
-4. Install the Base44 CLI: `npm install -g base44@latest`.
-5. Install [Deno](https://docs.deno.com/runtime/getting_started/installation/) â the local Base44 backend runs on it.
+## 2. Configure Environment Variables
 
-Run `base44 --help` (or see the [CLI reference](https://docs.base44.com/developers/references/cli/commands/introduction)) for the full command surface.
+1. Copy `.env.example` to `.env`:
+   ```bash
+   cp .env.example .env
+   ```
+2. In your Supabase dashboard, go to **Project Settings** -> **API**.
+3. Copy your **Project URL** and **Project API Key (`anon` / `public`)**.
+4. Set them in your `.env` file:
+   ```env
+   VITE_SUPABASE_URL=https://your-project.supabase.co
+   VITE_SUPABASE_ANON_KEY=your-anon-key
+   ```
 
-## Run Locally
-
-Three commands, from the project root:
-
-```bash
-base44 login   # one-time per machine
-base44 link    # one-time per clone
-base44 dev     # local backend + frontend together
-```
-
-Open the frontend URL that `base44 dev` prints (typically `http://localhost:5173`).
-
-Notes:
-
-- **Every fresh clone needs `base44 link`.** It writes `base44/.app.jsonc` (the app-id pointer), which is deliberately gitignored. Your app id is in the Builder URL (`app.base44.com/apps/<id>/...`); `base44 link --help` shows the non-interactive flags.
-- **`base44 dev` runs the frontend for you** (via `site.serveCommand` in this repo's `base44/config.jsonc`) â never run `npm run dev` yourself: alone it serves a UI with no backend behind it (`[base44] Proxy not enabled`, every `/api` call fails), and alongside `base44 dev` the second Vite silently takes the next port and you end up looking at the wrong one.
-- **The app must be published at least once for the UI to load under `base44 dev`.** The frontend boots by fetching app settings from the hosted app; before the first publish that fails and every page redirects to login. The local API works regardless.
-- Entities, functions, and auth run locally â entity data is **in-memory only**, wiped when `base44 dev` restarts. Everything else (Core integrations, OAuth login) is forwarded to your deployed app. Full breakdown: [Local development overview](https://docs.base44.com/developers/backend/overview/local-dev/local-development-overview).
-
-## Frontend Only, Hosted Backend
-
-To work on just the frontend against your app's live hosted backend:
+## 3. Run Locally
 
 ```bash
-base44 dev --remote
+npm install
+npm run dev
 ```
 
-â ï¸ In this mode writes go to your app's **production data** â plain `base44 dev` keeps everything local.
+Open `http://localhost:5173` in your browser.
 
-## Publish Your Changes
-
-After pushing your changes to git, open the Base44 dashboard and publish the app:
+## 4. Production Build & Deployment
 
 ```bash
-base44 dashboard open
+npm run build
 ```
 
-This repo syncs to Base44 through git, so publish from the dashboard rather than `base44 deploy` â a CLI deploy ships your local tree directly, bypassing the sync, and the deployed state silently diverges from the repo.
-
-## Docs & Support
-
-GitHub integration: [https://docs.base44.com/developers/app-code/local-development/github](https://docs.base44.com/developers/app-code/local-development/github)
-
-Local development: [https://docs.base44.com/developers/backend/overview/local-dev/local-development-overview](https://docs.base44.com/developers/backend/overview/local-dev/local-development-overview)
-
-Support: [https://app.base44.com/support](https://app.base44.com/support)
-
-
----
-
-[![Restore to base44](https://img.shields.io/badge/Restore%20to-BASE44-orange?style=for-the-badge&logo=rocket)](https://app.base44.com/apps)
+The compiled assets will be in `dist/`. You can deploy this folder directly to any static hosting provider (Vercel, Netlify, Cloudflare Pages, Docker, AWS S3/CloudFront, Nginx, etc.).

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { DragDropContext } from "@hello-pangea/dnd";
 import { Search } from "lucide-react";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/api/supabaseClient";
 import { toast } from "react-hot-toast";
 import Sidebar from "@/components/kanban/Sidebar";
 import StatsStrip from "@/components/kanban/StatsStrip";
@@ -21,9 +21,16 @@ export default function Home() {
 
   const loadTasks = useCallback(async () => {
     try {
-      const data = await base44.entities.Task.list("-created_date", 200);
-      setTasks(data);
+      const { data, error } = await supabase
+        .from("tasks")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(200);
+
+      if (error) throw error;
+      setTasks(data || []);
     } catch (e) {
+      console.error(e);
       toast.error("Could not load tasks");
     } finally {
       setLoading(false);
@@ -36,13 +43,13 @@ export default function Home() {
 
   const tasksByColumn = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const filtered = q ?
-    tasks.filter(
-      (t) =>
-      (t.title || "").toLowerCase().includes(q) ||
-      (t.description || "").toLowerCase().includes(q)
-    ) :
-    tasks;
+    const filtered = q
+      ? tasks.filter(
+          (t) =>
+            (t.title || "").toLowerCase().includes(q) ||
+            (t.description || "").toLowerCase().includes(q)
+        )
+      : tasks;
     const grouped = { backlog: [], todo: [], in_progress: [], done: [] };
     filtered.forEach((t) => {
       if (grouped[t.stage]) grouped[t.stage].push(t);
@@ -55,23 +62,36 @@ export default function Home() {
 
   const addTask = async (stage, title) => {
     try {
-      const order = tasksByColumn[stage].length;
-      const created = await base44.entities.Task.create({ title, stage, order });
-      setTasks((prev) => [created, ...prev]);
+      const order = tasksByColumn[stage]?.length || 0;
+      const { data, error } = await supabase
+        .from("tasks")
+        .insert([{ title, stage, order }])
+        .select()
+        .single();
+
+      if (error) throw error;
+      setTasks((prev) => [data, ...prev]);
     } catch (e) {
+      console.error(e);
       toast.error("Could not add task");
       throw e;
     }
   };
 
   const updateTask = async (id, patch) => {
-    setTasks((prev) => prev.map((t) => t.id === id ? { ...t, ...patch } : t));
+    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
     if (selectedTask?.id === id) {
-      setSelectedTask((prev) => prev ? { ...prev, ...patch } : prev);
+      setSelectedTask((prev) => (prev ? { ...prev, ...patch } : prev));
     }
     try {
-      await base44.entities.Task.update(id, patch);
+      const { error } = await supabase
+        .from("tasks")
+        .update({ ...patch, updated_at: new Date().toISOString() })
+        .eq("id", id);
+
+      if (error) throw error;
     } catch (e) {
+      console.error(e);
       toast.error("Could not save change");
       await loadTasks();
     }
@@ -80,9 +100,11 @@ export default function Home() {
   const deleteTask = async (id) => {
     setTasks((prev) => prev.filter((t) => t.id !== id));
     try {
-      await base44.entities.Task.delete(id);
+      const { error } = await supabase.from("tasks").delete().eq("id", id);
+      if (error) throw error;
       toast.success("Task deleted");
     } catch (e) {
+      console.error(e);
       toast.error("Could not delete task");
       await loadTasks();
     }
@@ -118,8 +140,14 @@ export default function Home() {
 
     // Persist stage change + reorder
     try {
-      await base44.entities.Task.update(moved.id, { stage: newStage });
+      const { error } = await supabase
+        .from("tasks")
+        .update({ stage: newStage, updated_at: new Date().toISOString() })
+        .eq("id", moved.id);
+
+      if (error) throw error;
     } catch (e) {
+      console.error(e);
       toast.error("Could not move task");
       await loadTasks();
     }
@@ -137,7 +165,7 @@ export default function Home() {
         {/* Header */}
         <header className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-white/40 backdrop-blur-sm">
           <div>
-            <h1 className="text-xl font-bold text-slate-900">Puffy Todos </h1>
+            <h1 className="text-xl font-bold text-slate-900">Puffy Todos</h1>
             <p className="text-xs text-slate-400 mt-0.5">
               {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
             </p>
@@ -148,35 +176,35 @@ export default function Home() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search tasks by title or details…"
-              className="w-full bg-white border border-slate-200 rounded-full pl-10 pr-4 py-2 text-sm text-slate-700 placeholder-slate-400 outline-none focus:border-slate-400" />
-            
+              className="w-full bg-white border border-slate-200 rounded-full pl-10 pr-4 py-2 text-sm text-slate-700 placeholder-slate-400 outline-none focus:border-slate-400"
+            />
           </div>
         </header>
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-5">
           <StatsStrip tasks={tasks} />
-          {loading ?
-          <div className="flex items-center justify-center h-64">
+          {loading ? (
+            <div className="flex items-center justify-center h-64">
               <div className="w-7 h-7 border-[3px] border-slate-200 border-t-slate-700 rounded-full animate-spin" />
-            </div> :
-          view === "calendar" ?
-          <CalendarView tasks={tasks} onTaskClick={openTask} /> :
-
-          <DragDropContext onDragEnd={onDragEnd}>
+            </div>
+          ) : view === "calendar" ? (
+            <CalendarView tasks={tasks} onTaskClick={openTask} />
+          ) : (
+            <DragDropContext onDragEnd={onDragEnd}>
               <div className="flex gap-4 overflow-x-auto pb-4">
-                {COLUMNS.map((col) =>
-              <Column
-                key={col}
-                columnId={col}
-                tasks={tasksByColumn[col]}
-                onAddTask={addTask}
-                onCardClick={openTask} />
-
-              )}
+                {COLUMNS.map((col) => (
+                  <Column
+                    key={col}
+                    columnId={col}
+                    tasks={tasksByColumn[col]}
+                    onAddTask={addTask}
+                    onCardClick={openTask}
+                  />
+                ))}
               </div>
             </DragDropContext>
-          }
+          )}
         </div>
       </div>
 
@@ -185,8 +213,8 @@ export default function Home() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onUpdate={updateTask}
-        onDelete={deleteTask} />
-      
-    </div>);
-
+        onDelete={deleteTask}
+      />
+    </div>
+  );
 }
