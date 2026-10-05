@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { DragDropContext } from "@hello-pangea/dnd";
-import { Search } from "lucide-react";
+import { Search, Volume2, VolumeX, Sliders } from "lucide-react";
 import { supabase } from "@/api/supabaseClient";
 import { toast } from "react-hot-toast";
 import Sidebar from "@/components/kanban/Sidebar";
@@ -8,6 +8,9 @@ import StatsStrip from "@/components/kanban/StatsStrip";
 import Column from "@/components/kanban/Column";
 import TaskDetailModal from "@/components/kanban/TaskDetailModal";
 import CalendarView from "@/components/kanban/CalendarView";
+import SoundSettingsModal from "@/components/kanban/SoundSettingsModal";
+import { sounds } from "@/utils/soundEffects";
+import { fireDoneConfetti } from "@/utils/confetti";
 
 const COLUMNS = ["backlog", "todo", "in_progress", "done"];
 
@@ -17,7 +20,31 @@ export default function Home() {
   const [search, setSearch] = useState("");
   const [selectedTask, setSelectedTask] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [soundModalOpen, setSoundModalOpen] = useState(false);
   const [view, setView] = useState("board");
+  const [soundMuted, setSoundMuted] = useState(() => sounds.isMuted());
+
+  const lastHoveredDroppableRef = useRef(null);
+
+  const toggleSound = () => {
+    const nextMuted = sounds.toggleMute();
+    setSoundMuted(nextMuted);
+    if (!nextMuted) {
+      sounds.playClick();
+      toast.success("Sound effects enabled", { id: "sound-toast", duration: 1500 });
+    } else {
+      toast("Sound effects muted", { id: "sound-toast", duration: 1500 });
+    }
+  };
+
+  const handleViewChange = (v) => {
+    if (v === "settings") {
+      sounds.playClick();
+      setSoundModalOpen(true);
+    } else {
+      setView(v);
+    }
+  };
 
   const loadTasks = useCallback(async () => {
     try {
@@ -71,6 +98,7 @@ export default function Home() {
 
       if (error) throw error;
       setTasks((prev) => [data, ...prev]);
+      sounds.playAdd();
     } catch (e) {
       console.error(e);
       toast.error("Could not add task");
@@ -99,6 +127,7 @@ export default function Home() {
 
   const deleteTask = async (id) => {
     setTasks((prev) => prev.filter((t) => t.id !== id));
+    sounds.playDelete();
     try {
       const { error } = await supabase.from("tasks").delete().eq("id", id);
       if (error) throw error;
@@ -110,13 +139,40 @@ export default function Home() {
     }
   };
 
+  const onDragStart = (start) => {
+    lastHoveredDroppableRef.current = start.source.droppableId;
+    sounds.playGrab();
+  };
+
+  const onDragUpdate = (update) => {
+    if (update.destination && update.destination.droppableId !== lastHoveredDroppableRef.current) {
+      lastHoveredDroppableRef.current = update.destination.droppableId;
+      sounds.playDragHover();
+    }
+  };
+
   const onDragEnd = async (result) => {
     const { source, destination } = result;
-    if (!destination) return;
-    if (source.droppableId === destination.droppableId && source.index === destination.index) return;
+    if (!destination) {
+      sounds.playRelease();
+      return;
+    }
+    if (source.droppableId === destination.droppableId && source.index === destination.index) {
+      sounds.playRelease();
+      return;
+    }
 
     const sourceCol = source.droppableId;
     const destCol = destination.droppableId;
+
+    // Check if task landed in Done column
+    if (destCol === "done" && sourceCol !== "done") {
+      sounds.playDone();
+      fireDoneConfetti();
+    } else {
+      sounds.playRelease();
+    }
+
     const sourceTasks = [...tasksByColumn[sourceCol]];
     const [moved] = sourceTasks.splice(source.index, 1);
     if (!moved) return;
@@ -154,13 +210,14 @@ export default function Home() {
   };
 
   const openTask = (task) => {
+    sounds.playClick();
     setSelectedTask(task);
     setModalOpen(true);
   };
 
   return (
     <div className="flex h-screen bg-[#F4F4F4] overflow-hidden">
-      <Sidebar view={view} onViewChange={setView} />
+      <Sidebar view={view} onViewChange={handleViewChange} />
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
         <header className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-white/40 backdrop-blur-sm">
@@ -170,14 +227,42 @@ export default function Home() {
               {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
             </p>
           </div>
-          <div className="relative w-56 hidden sm:block">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search tasks by title or details…"
-              className="w-full bg-white border border-slate-200 rounded-full pl-10 pr-4 py-2 text-sm text-slate-700 placeholder-slate-400 outline-none focus:border-slate-400"
-            />
+          <div className="flex items-center gap-3">
+            {/* Sound Toggle & Customizer Button */}
+            <div className="flex items-center gap-1 bg-white border border-slate-200/90 rounded-full p-1 shadow-sm">
+              <button
+                onClick={toggleSound}
+                title={soundMuted ? "Unmute sound effects" : "Mute sound effects"}
+                className={`px-3 py-1.5 rounded-full transition-all duration-200 active:scale-95 flex items-center gap-1.5 text-xs font-semibold ${
+                  soundMuted
+                    ? "bg-slate-100 text-slate-400 hover:text-slate-600"
+                    : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
+                }`}
+              >
+                {soundMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+                <span className="hidden sm:inline">{soundMuted ? "Muted" : "Sound On"}</span>
+              </button>
+              <button
+                onClick={() => {
+                  sounds.playClick();
+                  setSoundModalOpen(true);
+                }}
+                title="Customize sound effects for each action"
+                className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors active:scale-90"
+              >
+                <Sliders className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="relative w-56 hidden sm:block">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search tasks by title or details…"
+                className="w-full bg-white border border-slate-200 rounded-full pl-10 pr-4 py-2 text-sm text-slate-700 placeholder-slate-400 outline-none focus:border-slate-400"
+              />
+            </div>
           </div>
         </header>
 
@@ -191,7 +276,11 @@ export default function Home() {
           ) : view === "calendar" ? (
             <CalendarView tasks={tasks} onTaskClick={openTask} />
           ) : (
-            <DragDropContext onDragEnd={onDragEnd}>
+            <DragDropContext
+              onDragStart={onDragStart}
+              onDragUpdate={onDragUpdate}
+              onDragEnd={onDragEnd}
+            >
               <div className="flex gap-4 overflow-x-auto pb-4">
                 {COLUMNS.map((col) => (
                   <Column
@@ -214,6 +303,12 @@ export default function Home() {
         onClose={() => setModalOpen(false)}
         onUpdate={updateTask}
         onDelete={deleteTask}
+      />
+
+      <SoundSettingsModal
+        open={soundModalOpen}
+        onClose={() => setSoundModalOpen(false)}
+        onConfigChange={(cfg) => setSoundMuted(cfg.muted)}
       />
     </div>
   );

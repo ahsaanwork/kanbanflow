@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Trash2, X } from "lucide-react";
+import { Trash2 } from "lucide-react";
+import { sounds } from "@/utils/soundEffects";
 
 const PRIORITIES = [
   { value: "low", label: "Low" },
@@ -41,6 +42,7 @@ export default function TaskDetailModal({ task, open, onClose, onUpdate, onDelet
     scheduleSave({ description: v });
   };
   const onPriorityChange = (v) => {
+    sounds.playClick();
     setPriority(v);
     onUpdate(task.id, { priority: v });
   };
@@ -54,19 +56,18 @@ export default function TaskDetailModal({ task, open, onClose, onUpdate, onDelet
     onClose();
   };
 
+  const handleClose = () => {
+    sounds.playClick();
+    onClose();
+  };
+
   if (!task) return null;
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-lg p-0 gap-0">
+    <Dialog open={open} onOpenChange={(o) => (!o ? handleClose() : null)}>
+      <DialogContent className="sm:max-w-lg p-0 gap-0 overflow-hidden rounded-2xl animate-in zoom-in-95 duration-200">
         <DialogHeader className="px-6 pt-6 pb-2">
           <DialogTitle className="sr-only">Task details</DialogTitle>
-          <button
-            onClick={onClose}
-            className="absolute right-4 top-4 text-slate-400 hover:text-slate-700 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
         </DialogHeader>
         <div className="px-6 pb-6 space-y-5">
           <input
@@ -85,7 +86,7 @@ export default function TaskDetailModal({ task, open, onClose, onUpdate, onDelet
               onChange={(e) => onDescriptionChange(e.target.value)}
               placeholder="Add details…"
               rows={4}
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 placeholder-slate-400 outline-none focus:border-slate-400 resize-none"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 placeholder-slate-400 outline-none focus:border-slate-400 focus:bg-white transition-colors resize-none"
             />
           </div>
 
@@ -98,7 +99,7 @@ export default function TaskDetailModal({ task, open, onClose, onUpdate, onDelet
                 type="date"
                 value={dueDate || ""}
                 onChange={(e) => onDueDateChange(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 outline-none focus:border-slate-400"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 outline-none focus:border-slate-400 focus:bg-white transition-colors"
               />
             </div>
             <div>
@@ -110,10 +111,10 @@ export default function TaskDetailModal({ task, open, onClose, onUpdate, onDelet
                   <button
                     key={p.value}
                     onClick={() => onPriorityChange(p.value)}
-                    className={`flex-1 text-xs font-medium px-2 py-2 rounded-lg border transition-colors ${
+                    className={`flex-1 text-xs font-medium px-2 py-2 rounded-xl border active:scale-95 transition-all duration-150 ${
                       priority === p.value
-                        ? "bg-slate-900 text-white border-slate-900"
-                        : "bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300"
+                        ? "bg-slate-900 text-white border-slate-900 shadow-sm"
+                        : "bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300 hover:bg-white"
                     }`}
                   >
                     {p.label}
@@ -123,10 +124,10 @@ export default function TaskDetailModal({ task, open, onClose, onUpdate, onDelet
             </div>
           </div>
 
-          <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+          <div className="flex justify-between items-center pt-3 border-t border-slate-100">
             <button
               onClick={handleDelete}
-              className="inline-flex items-center gap-1.5 text-red-500 hover:text-red-600 text-sm font-medium transition-colors"
+              className="inline-flex items-center gap-1.5 text-red-500 hover:text-red-600 active:scale-95 text-sm font-medium transition-all"
             >
               <Trash2 className="w-4 h-4" />
               Delete task
